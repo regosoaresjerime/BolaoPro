@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Base resets & custom scrollbars */
+html, body {
+  background-color: #0D1117;
+  color: #dfe2eb;
+  font-family: var(--font-sans);
+  overflow-y: scroll;
+}
+
+/* Custom Webkit scrollbar for premium feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0D1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #21262d;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #30363d;
+}
+
+/* Custom interactive animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+/* Class helper targets */
+.font-display-score {
+  font-family: var(--font-display);
+}
+
+.score-input {
+  appearance: none;
+  -moz-appearance: textfield;
+}
+.score-input::-webkit-outer-spin-button,
+.score-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Touch-friendly styling for touch click targets and premium system-wide button styling */
+button, input[type="submit"], .btn-system {
+  font-family: inherit;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  cursor: pointer !important;
+}
+
+button:hover, button:active, input[type="submit"]:hover, .btn-system:hover {
+  background-color: #00E676 !important;
+  color: #000000 !important;
+  border-color: #00E676 !important;
+  transform: scale(1.02);
+  box-shadow: 0 0 15px rgba(0, 230, 118, 0.4) !important;
+}
+
+button:active, .btn-system:active {
+  transform: scale(0.98);
+}
+
+/* Ensure all nested text, spans, images, and lucide icons inherit correct colors */
+button *, button span, button svg {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
+input, select, textarea {
+  font-family: inherit;
+}
+
+/* Glowing green pulse */
+.pulse-green {
+  box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.4);
+  animation: pulse-g 1.8s infinite;
+}
+
+@keyframes pulse-g {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(0, 230, 118, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 230, 118, 0);
+  }
+}

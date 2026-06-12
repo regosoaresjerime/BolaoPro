@@ -1,0 +1,6 @@
+{
+  "name": "BolãoPro 2026",
+  "description": "Plataforma SaaS de gestão e monetização de bolões esportivos para a Copa do Mundo 2026 com checkout Pix e simulador financeiro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
