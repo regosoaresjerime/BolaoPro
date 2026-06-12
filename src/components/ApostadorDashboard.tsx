@@ -606,6 +606,7 @@ export default function ApostadorDashboard({
 
     return Array.from(uniqueTeams.values()).slice(0, 4);
   }, [getAgendaTeamDisplay]);
+  const activePoolHeroTeams = useMemo(() => getPoolHeroTeams(activePoolMatches), [activePoolMatches, getPoolHeroTeams]);
   const todayKey = new Date().toISOString().slice(0, 10);
   const agendaMatchesBase = useMemo(() => {
     return matchesList
@@ -2034,6 +2035,29 @@ export default function ApostadorDashboard({
                   <Clock className="w-3 h-3 inline mr-1" />
                   Prazo: {formatPoolDeadline(activePool, activePoolMatches)}
                 </p>
+                {activePoolHeroTeams.length > 0 && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <div className="flex -space-x-2">
+                      {activePoolHeroTeams.slice(0, 4).map((team, index) => (
+                        <div key={`${team.displayCode}-${index}`} className="rounded-full bg-[#081018]/75 p-0.5">
+                          <TeamAvatar
+                            accent={team.accent}
+                            accentDark={team.accentDark}
+                            className="h-8 w-8"
+                            fallback={team.displayFlag || team.displayCode}
+                            fallbackClassName="text-[9px]"
+                            name={team.displayName}
+                            src={team.imageUrl}
+                            title={team.displayName}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-on-surface-variant leading-tight">
+                      {activePoolHeroTeams.map((team) => team.displayName).join(' • ')}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -2241,18 +2265,30 @@ export default function ApostadorDashboard({
                   </p>
 
                   <div className={`grid gap-2 mt-1 ${currentPodiumSnapshot.length <= 2 ? 'grid-cols-2' : 'grid-cols-4'}`}>
-                    {currentPodiumSnapshot.map((entry) => (
+                    {currentPodiumSnapshot.map((entry) => {
+                      const podiumTeamData = getLobbyPodiumDisplay(entry);
+
+                      return (
                       <div key={`${entry.slotKey}-${entry.position}`} className="flex flex-col items-center bg-black/40 p-2 rounded border border-[#1f2937]/50">
                         <span className="text-[9px] text-[#ffdb3c] font-bold mb-1">{entry.position}º</span>
-                        <span className="text-base select-none">{entry.teamFlag || '🏳️'}</span>
-                        <span className="text-[9px] font-mono font-bold text-white truncate w-full text-center mt-1">
-                          {entry.teamCode || '---'}
+                        <TeamAvatar
+                          accent={podiumTeamData.accent}
+                          accentDark={podiumTeamData.accentDark}
+                          className="h-10 w-10"
+                          fallback={podiumTeamData.displayFlag || podiumTeamData.displayCode}
+                          fallbackClassName="text-[10px]"
+                          name={podiumTeamData.displayName}
+                          src={podiumTeamData.imageUrl}
+                          title={podiumTeamData.displayName}
+                        />
+                        <span className="text-[9px] font-bold text-white truncate w-full text-center mt-1">
+                          {podiumTeamData.displayName}
                         </span>
                         <span className="text-[9px] text-on-surface-variant truncate w-full text-center mt-0.5">
                           {entry.positionLabel}
                         </span>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               </div>
@@ -2284,6 +2320,8 @@ export default function ApostadorDashboard({
                 {activePoolMatches.map((match) => {
                   const pick = currentNewPick[match.id] || { matchId: match.id, groupId: activePool?.id || '', betId: currentBetId, scoreA: null, scoreB: null, saved: false };
                   const isExpired = match.status === 'finished' || isActivePoolBettingClosed;
+                  const teamAData = getAgendaTeamDisplay(match.teamA, match.teamAFlag);
+                  const teamBData = getAgendaTeamDisplay(match.teamB, match.teamBFlag);
 
                   return (
                     <div 
@@ -2312,14 +2350,16 @@ export default function ApostadorDashboard({
                       <div className="flex items-center justify-between py-1 relative">
                         <div className="flex flex-col items-center gap-2 w-1/3">
                           <TeamAvatar
+                            accent={teamAData.accent}
+                            accentDark={teamAData.accentDark}
                             className="h-11 w-11"
-                            fallback={match.teamA.slice(0, 3).toUpperCase()}
+                            fallback={teamAData.displayFlag || teamAData.displayCode}
                             fallbackClassName="text-[10px]"
-                            name={match.teamA}
-                            src={match.teamAFlag}
-                            title={match.teamA}
+                            name={teamAData.displayName}
+                            src={teamAData.imageUrl}
+                            title={teamAData.displayName}
                           />
-                          <span className="font-bold text-on-surface text-xs font-mono">{match.teamA}</span>
+                          <span className="font-bold text-on-surface text-xs text-center leading-tight">{teamAData.displayName}</span>
                         </div>
 
                         <div className="flex items-center gap-2 w-1/3 justify-center relative">
@@ -2330,7 +2370,7 @@ export default function ApostadorDashboard({
                           ) : (
                             <input 
                               type="number"
-                              aria-label={`Gols ${match.teamA}`}
+                              aria-label={`Gols ${teamAData.displayName}`}
                               value={pick.scoreA !== null ? pick.scoreA : ''}
                               onChange={(e) => handleScoreChange(match.id, 'a', e.target.value)}
                               placeholder="-"
@@ -2349,7 +2389,7 @@ export default function ApostadorDashboard({
                           ) : (
                             <input 
                               type="number"
-                              aria-label={`Gols ${match.teamB}`}
+                              aria-label={`Gols ${teamBData.displayName}`}
                               value={pick.scoreB !== null ? pick.scoreB : ''}
                               onChange={(e) => handleScoreChange(match.id, 'b', e.target.value)}
                               placeholder="-"
@@ -2368,14 +2408,16 @@ export default function ApostadorDashboard({
 
                         <div className="flex flex-col items-center gap-2 w-1/3">
                           <TeamAvatar
+                            accent={teamBData.accent}
+                            accentDark={teamBData.accentDark}
                             className="h-11 w-11"
-                            fallback={match.teamB.slice(0, 3).toUpperCase()}
+                            fallback={teamBData.displayFlag || teamBData.displayCode}
                             fallbackClassName="text-[10px]"
-                            name={match.teamB}
-                            src={match.teamBFlag}
-                            title={match.teamB}
+                            name={teamBData.displayName}
+                            src={teamBData.imageUrl}
+                            title={teamBData.displayName}
                           />
-                          <span className="font-bold text-on-surface text-xs font-mono">{match.teamB}</span>
+                          <span className="font-bold text-on-surface text-xs text-center leading-tight">{teamBData.displayName}</span>
                         </div>
                       </div>
 
@@ -2500,13 +2542,23 @@ export default function ApostadorDashboard({
                               return (
                                 <div key={pick.matchId || pick.id || index} className="p-3 flex flex-col gap-2">
                                   {isPodiumPool ? (
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between gap-3">
                                       <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                                         {(match?.group || podiumSlot?.title || 'Pódio')}:
                                       </span>
                                       {pick.scoreA !== null && COPA_2026_TEAMS[pick.scoreA] ? (
-                                        <span className="text-sm font-bold text-on-surface flex items-center gap-2">
-                                          {COPA_2026_TEAMS[pick.scoreA].code} <span className="text-xl">{COPA_2026_TEAMS[pick.scoreA].flag}</span>
+                                        <span className="min-w-0 text-sm font-bold text-on-surface flex items-center gap-2">
+                                          <TeamAvatar
+                                            accent={getTeamAccentColors(COPA_2026_TEAMS[pick.scoreA].code)[0]}
+                                            accentDark={getTeamAccentColors(COPA_2026_TEAMS[pick.scoreA].code)[1]}
+                                            className="h-8 w-8 shrink-0"
+                                            fallback={COPA_2026_TEAMS[pick.scoreA].flag || COPA_2026_TEAMS[pick.scoreA].code}
+                                            fallbackClassName="text-[9px]"
+                                            name={COPA_2026_TEAMS[pick.scoreA].name}
+                                            src={getOfficialTeamFlagUrl(COPA_2026_TEAMS[pick.scoreA].code)}
+                                            title={COPA_2026_TEAMS[pick.scoreA].name}
+                                          />
+                                          <span className="truncate">{COPA_2026_TEAMS[pick.scoreA].name}</span>
                                         </span>
                                       ) : (
                                         <span className="text-xs text-on-surface-variant">—</span>
@@ -2516,8 +2568,26 @@ export default function ApostadorDashboard({
                                     <div className="flex flex-col gap-1">
                                       <span className="text-[9px] text-on-surface-variant uppercase tracking-wider">{match?.group} • {match?.dateText}</span>
                                       <div className="flex items-center justify-between gap-2">
+                                        {(() => {
+                                          const teamAData = match ? getAgendaTeamDisplay(match.teamA, match.teamAFlag) : null;
+                                          const teamBData = match ? getAgendaTeamDisplay(match.teamB, match.teamBFlag) : null;
+
+                                          return (
+                                            <>
                                         <div className="flex items-center gap-2 flex-1">
-                                          <span className="text-xs font-bold text-on-surface">{match?.teamA}</span>
+                                          {teamAData && (
+                                            <TeamAvatar
+                                              accent={teamAData.accent}
+                                              accentDark={teamAData.accentDark}
+                                              className="h-8 w-8 shrink-0"
+                                              fallback={teamAData.displayFlag || teamAData.displayCode}
+                                              fallbackClassName="text-[9px]"
+                                              name={teamAData.displayName}
+                                              src={teamAData.imageUrl}
+                                              title={teamAData.displayName}
+                                            />
+                                          )}
+                                          <span className="text-xs font-bold text-on-surface leading-tight">{teamAData?.displayName || match?.teamA}</span>
                                           <span className="font-display-score text-lg text-[#75ff9e] font-bold">
                                             {pick.scoreA ?? '-'}
                                           </span>
@@ -2527,8 +2597,23 @@ export default function ApostadorDashboard({
                                           <span className="font-display-score text-lg text-[#75ff9e] font-bold">
                                             {pick.scoreB ?? '-'}
                                           </span>
-                                          <span className="text-xs font-bold text-on-surface">{match?.teamB}</span>
+                                          <span className="text-xs font-bold text-on-surface text-right leading-tight">{teamBData?.displayName || match?.teamB}</span>
+                                          {teamBData && (
+                                            <TeamAvatar
+                                              accent={teamBData.accent}
+                                              accentDark={teamBData.accentDark}
+                                              className="h-8 w-8 shrink-0"
+                                              fallback={teamBData.displayFlag || teamBData.displayCode}
+                                              fallbackClassName="text-[9px]"
+                                              name={teamBData.displayName}
+                                              src={teamBData.imageUrl}
+                                              title={teamBData.displayName}
+                                            />
+                                          )}
                                         </div>
+                                            </>
+                                          );
+                                        })()}
                                       </div>
                                     </div>
                                   )}
