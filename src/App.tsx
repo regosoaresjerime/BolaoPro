@@ -227,6 +227,20 @@ export default function App() {
         userEmail || user?.email
       );
       setShowRlsWarning(!profileCheck);
+      if (profileCheck) {
+        setUser((currentUser) => {
+          if (!currentUser || currentUser.id !== userId) return currentUser;
+          return {
+            ...currentUser,
+            fullName: profileCheck.full_name || currentUser.fullName,
+            email: userEmail || currentUser.email,
+            isAdmin: Boolean(profileCheck.is_admin) || currentUser.isAdmin,
+            cpf: profileCheck.cpf || currentUser.cpf,
+            telefone: profileCheck.telefone || currentUser.telefone,
+            avatarUrl: profileCheck.avatar_url || currentUser.avatarUrl
+          };
+        });
+      }
 
       // Load Pools
       const pools = await SupabaseService.fetchPools();

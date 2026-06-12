@@ -126,7 +126,14 @@ export default function Onboarding({ onSuccess, lgpdAccepted, onAcceptLgpd, accu
         if (res.error) {
           setErrorMessage(res.error);
         } else if (res.user) {
-          onSuccess(res.user.fullName, res.user.email, res.user.id, res.user.isAdmin);
+          onSuccess(
+            res.user.fullName,
+            res.user.email,
+            res.user.id,
+            res.user.isAdmin,
+            res.user.cpf,
+            res.user.telefone
+          );
         }
       }
     } catch (err: any) {
