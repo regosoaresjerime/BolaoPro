@@ -1023,7 +1023,9 @@ export class SupabaseService {
     selectedMatchIds: string[],
     matches: Match[],
     currentUser?: { id?: string; fullName?: string },
-    prizeSettings?: { firstPlacePct: number; secondPlacePct: number; thirdPlacePct: number }
+    prizeSettings?: { firstPlacePct: number; secondPlacePct: number; thirdPlacePct: number },
+    poolBettingDeadline?: string,
+    poolFinalizedAt?: string
   ): Promise<Participant[]> {
     if (!groupId || selectedMatchIds.length === 0) return [];
     if (!isSupabaseConfigured || !supabase) return [];
@@ -1056,17 +1058,19 @@ export class SupabaseService {
         mapRecordToMatch(mergeGroupMatchWithOfficialResult(match, officialMatchesByKey))
       );
 
-      const finishedMatchIds = evaluatedMatches
-        .filter((match) => selectedMatchIds.includes(match.id) && match.status === 'finished')
+      // Buscar picks de TODOS os jogos selecionados (não apenas os finalizados)
+      // O placar 0x0 inicial da API será usado para calcular o ranking desde o início
+      const matchesWithScore = evaluatedMatches
+        .filter((match) => selectedMatchIds.includes(match.id) && match.scoreA !== null && match.scoreB !== null)
         .map((match) => match.id);
 
-      if (finishedMatchIds.length === 0) return [];
+      if (matchesWithScore.length === 0) return [];
 
       const { data: picksData, error: picksError } = await supabase
         .from('user_picks')
         .select('user_id, bet_id, match_id, score_a, score_b, updated_at')
         .eq('group_id', groupId)
-        .in('match_id', finishedMatchIds);
+        .in('match_id', matchesWithScore);
 
       if (picksError) throw picksError;
       if (!picksData || picksData.length === 0) return [];
@@ -1079,9 +1083,15 @@ export class SupabaseService {
         prizeSettings?.thirdPlacePct ?? 15
       );
 
+      // Um bolão é oficial se: foi encerrado manualmente (finalizedAt definido)
+      // OU se já passaram 3 horas do prazo limite de apostas
+      const now = Date.now();
+      const deadlinePlusThreeHours = poolBettingDeadline
+        ? new Date(poolBettingDeadline).getTime() + 3 * 60 * 60 * 1000
+        : null;
       const official =
-        selectedMatchIds.length > 0 &&
-        selectedMatchIds.every((matchId) => evaluatedMatches.some((match) => match.id === matchId && match.status === 'finished'));
+        !!poolFinalizedAt ||
+        (deadlinePlusThreeHours !== null && now >= deadlinePlusThreeHours);
 
       return buildPublicScoreRanking({
         picks: picksData.map((pick: any) => {
@@ -1097,7 +1107,7 @@ export class SupabaseService {
             avatarUrl: profile?.avatar_url
           };
         }),
-        selectedMatchIds,
+        selectedMatchIds: matchesWithScore,
         matches: evaluatedMatches,
         currentUserId: currentUser?.id,
         currentUserName: currentUser?.fullName,
@@ -1107,6 +1117,29 @@ export class SupabaseService {
     } catch (err) {
       console.error('Error fetching score ranking participants:', err);
       return [];
+    }
+  }
+
+
+  /**
+   * Finaliza um bolão manualmente (banca encerra antes do prazo de 3h).
+   * Salva a data/hora de encerramento no campo finalized_at da tabela bolao_groups.
+   */
+  static async finalizePool(poolId: string): Promise<{ success: boolean; error?: string }> {
+    if (!poolId) return { success: false, error: 'ID do bolão inválido.' };
+    if (!isSupabaseConfigured || !supabase) return { success: false, error: 'Supabase não configurado.' };
+
+    try {
+      const { error } = await supabase
+        .from('bolao_groups')
+        .update({ finalized_at: new Date().toISOString() })
+        .eq('id', poolId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      console.error('Error finalizing pool:', err);
+      return { success: false, error: err?.message || String(err) };
     }
   }
 
@@ -1803,6 +1836,7 @@ export class SupabaseService {
           memberCount: 0,
           description: description,
           bettingDeadline,
+          finalizedAt: g.finalized_at || undefined,
           feeType: feeType,
           feeValue: feeValue,
           maxParticipants: maxParticipants,

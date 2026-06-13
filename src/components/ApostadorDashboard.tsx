@@ -359,6 +359,7 @@ export default function ApostadorDashboard({
   const [rankingParticipantsByPool, setRankingParticipantsByPool] = useState<Record<string, Participant[]>>({});
   const [rankingLoadingByPool, setRankingLoadingByPool] = useState<Record<string, boolean>>({});
   const [expandedRankingPoolIds, setExpandedRankingPoolIds] = useState<string[]>(() => poolsList[0]?.id ? [poolsList[0].id] : []);
+  const [rankingTab, setRankingTab] = useState<'ativos' | 'finalizados'>('ativos');
   const [autosaveToasts, setAutosaveToasts] = useState<Record<string, boolean>>({});
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   const timeoutRefs = useRef<Record<string, any>>({});
@@ -893,7 +894,9 @@ export default function ApostadorDashboard({
             pool.selectedMatchIds || [],
             matchesList,
             { id: user.id, fullName: user.fullName },
-            prizeSettings
+            prizeSettings,
+            pool.bettingDeadline,
+            pool.finalizedAt
           );
 
           return [pool.id, ranking] as const;
@@ -2636,169 +2639,269 @@ export default function ApostadorDashboard({
         {/* --- Tab 3: Tabela de Rankings ao Vivo --- */}
         {activeTab === 'ranking' && (
           <div className="flex flex-col gap-4 animate-fadeIn">
+            {/* Header */}
             <div className="bg-[#1c2026] p-4 rounded-xl border border-outline-variant">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-error-container/20 border border-error/30 text-error font-label-sm text-label-sm uppercase tracking-wider text-[9px] font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-error relative animate-pulse"></span>
-                Classificação Pública
+                Ao Vivo
               </span>
-              <h3 className="font-bold text-on-surface text-sm mt-1.5">Todos os bolões criados</h3>
-              <p className="text-[11px] text-on-surface-variant font-medium">
-                Cada card mostra sua posição naquele bolão e, ao expandir, exibe o ranking público completo.
-              </p>
+              <h3 className="font-bold text-on-surface text-sm mt-1.5">Bolões Criados</h3>
             </div>
 
-            {poolsList.length === 0 ? (
-              <div className="bg-[#0d1117] border border-[#1f2937] p-4 rounded-xl text-sm text-on-surface-variant">
-                Nenhum bolão foi criado ainda.
-              </div>
-            ) : (
-              poolsList.map((pool) => {
+            {/* Abas ATIVOS / FINALIZADOS */}
+            <div className="flex gap-2 bg-[#0d1117] p-1 rounded-xl border border-outline-variant">
+              {(['ativos', 'finalizados'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setRankingTab(tab)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    rankingTab === tab
+                      ? 'bg-primary-container text-[#00210b]'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {tab === 'ativos' ? '⚡ Ativos' : '🏁 Finalizados'}
+                </button>
+              ))}
+            </div>
+
+            {(() => {
+              // Determinar se um bolão está finalizado:
+              // finalizedAt definido manualmente OU 3h após o bettingDeadline
+              const isPoolFinalized = (pool: typeof poolsList[0]) => {
+                if (pool.finalizedAt) return true;
+                if (!pool.bettingDeadline) return false;
+                return Date.now() >= new Date(pool.bettingDeadline).getTime() + 3 * 60 * 60 * 1000;
+              };
+
+              const filteredPools = poolsList.filter((pool) =>
+                rankingTab === 'ativos' ? !isPoolFinalized(pool) : isPoolFinalized(pool)
+              );
+
+              if (filteredPools.length === 0) {
+                return (
+                  <div className="bg-[#0d1117] border border-[#1f2937] p-6 rounded-xl text-sm text-on-surface-variant text-center">
+                    {rankingTab === 'ativos'
+                      ? 'Nenhum bolão ativo no momento.'
+                      : 'Nenhum bolão finalizado ainda.'}
+                  </div>
+                );
+              }
+
+              return filteredPools.map((pool) => {
                 const participants = rankingParticipantsByPool[pool.id] || [];
                 const isLoading = !!rankingLoadingByPool[pool.id];
                 const isExpanded = expandedRankingPoolIds.includes(pool.id);
                 const currentUserEntry = participants.find((player) => player.isCurrentUser) || null;
                 const probableWinners = participants.filter((player) => player.prizeZone);
-                const poolMatches = getPoolMatches(pool);
-                const poolPodiumMatchIds = getPoolPodiumMatchIds(pool);
-                const poolPodiumSnapshot = poolPodiumMatchIds
-                  .map((matchId) => getPodiumEntryForPoolMatch(matchId, matchesList, tournamentPodium))
-                  .filter(Boolean) as TournamentPodiumEntry[];
-                const isOfficialRanking = pool.modality === 'podium'
-                  ? !isPodiumStillProvisional(poolPodiumSnapshot)
-                  : poolMatches.length > 0 && poolMatches.every((match) => match.status === 'finished');
+
+                // Ranking oficial: finalizado manualmente ou +3h após deadline
+                const isOfficialRanking = pool.finalizedAt
+                  ? true
+                  : pool.modality === 'podium'
+                    ? !isPodiumStillProvisional(
+                        getPoolPodiumMatchIds(pool)
+                          .map((matchId) => getPodiumEntryForPoolMatch(matchId, matchesList, tournamentPodium))
+                          .filter(Boolean) as TournamentPodiumEntry[]
+                      )
+                    : pool.bettingDeadline
+                      ? Date.now() >= new Date(pool.bettingDeadline).getTime() + 3 * 60 * 60 * 1000
+                      : false;
+
+                // Top 3 sempre visíveis; restante controlado por expandedRankingPoolIds
+                const top3 = participants.slice(0, 3);
+                const rest = participants.slice(3);
+                const showAll = isExpanded;
 
                 return (
                   <div key={pool.id} className="rounded-2xl border border-outline-variant bg-[#181c22] overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedRankingPoolIds((prev) =>
-                          prev.includes(pool.id) ? prev.filter((id) => id !== pool.id) : [...prev, pool.id]
-                        )
-                      }
-                      className="w-full px-4 py-4 flex items-start justify-between gap-3 text-left hover:bg-white/5 transition-colors"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-on-surface">{pool.name}</span>
-                          <span className="px-2 py-0.5 rounded-full border border-white/10 text-[10px] uppercase text-on-surface-variant">
+                    {/* Card Header */}
+                    <div className="px-4 pt-4 pb-3">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="text-sm font-bold text-on-surface truncate">{pool.name}</span>
+                          <span className="px-2 py-0.5 rounded-full border border-white/10 text-[10px] uppercase text-on-surface-variant shrink-0">
                             {pool.modality === 'podium' ? 'Bolão Pódio' : 'Bolão Placar'}
                           </span>
-                          <span className="px-2 py-0.5 rounded-full border border-white/10 text-[10px] uppercase text-on-surface-variant">
-                            {pool.inviteCode}
-                          </span>
                         </div>
-                        <p className="text-[11px] text-on-surface-variant mt-1">
-                          {pool.description || 'Ranking público do bolão.'}
-                        </p>
-                        <div className="flex items-center gap-4 mt-3 text-[11px] text-on-surface-variant">
-                          <span>
-                            Sua posição: <strong className="text-white">{currentUserEntry ? `${currentUserEntry.rank}º` : '--'}</strong>
-                          </span>
-                          <span>
-                            Seus pontos: <strong className="text-white">{currentUserEntry ? `${currentUserEntry.points} pts` : '0 pts'}</strong>
-                          </span>
-                          <span>
-                            Participantes com pontos: <strong className="text-white">{participants.length}</strong>
-                          </span>
-                        </div>
+                        <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase shrink-0 ${
+                          isOfficialRanking
+                            ? 'bg-[#00e676]/15 text-[#00e676] border border-[#00e676]/30'
+                            : 'bg-[#ffe16d]/10 text-[#ffe16d] border border-[#ffe16d]/30'
+                        }`}>
+                          {isOfficialRanking ? '✓ Oficial' : '⏱ Parcial'}
+                        </span>
                       </div>
-                      <ChevronRight
-                        className={`w-5 h-5 text-on-surface-variant shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                      />
-                    </button>
 
-                    {isExpanded && (
-                      <div className="border-t border-outline-variant px-4 py-4 flex flex-col gap-3">
-                        {isLoading ? (
-                          <div className="bg-[#0d1117] border border-[#1f2937] p-3 rounded-xl text-xs text-on-surface-variant">
-                            Carregando ranking deste bolão...
-                          </div>
-                        ) : participants.length === 0 ? (
-                          <div className="bg-[#0d1117] border border-[#1f2937] p-3 rounded-xl text-xs text-on-surface-variant">
-                            Nenhum apostador pontuou neste bolão ainda.
-                          </div>
-                        ) : (
-                          <>
+                      <div className="flex items-center gap-4 text-[11px] text-on-surface-variant">
+                        <span>
+                          Sua posição: <strong className="text-white">{currentUserEntry ? `${currentUserEntry.rank}º` : '--'}</strong>
+                        </span>
+                        <span>
+                          Seus pontos: <strong className="text-white">{currentUserEntry ? `${currentUserEntry.points} pts` : '0 pts'}</strong>
+                        </span>
+                        <span>
+                          Apostadores: <strong className="text-white">{participants.length}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Ranking table - sempre visível */}
+                    <div className="border-t border-outline-variant px-4 py-3 flex flex-col gap-3">
+                      {isLoading ? (
+                        <div className="bg-[#0d1117] border border-[#1f2937] p-3 rounded-xl text-xs text-on-surface-variant text-center animate-pulse">
+                          Carregando ranking...
+                        </div>
+                      ) : participants.length === 0 ? (
+                        <div className="bg-[#0d1117] border border-[#1f2937] p-3 rounded-xl text-xs text-on-surface-variant text-center">
+                          Nenhum apostador pontuou neste bolão ainda.
+                        </div>
+                      ) : (
+                        <>
+                          {/* Prováveis premiados */}
+                          {probableWinners.length > 0 && (
                             <div className="bg-[#00e676]/10 border border-[#00e676]/35 p-3 rounded-xl flex items-center justify-between text-xs text-[#00e676] gap-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-base">🏆</span>
-                                <span>
-                                  <strong>{isOfficialRanking ? 'Faixa premiada atual:' : 'Prováveis premiados no momento:'}</strong>{' '}
-                                  {probableWinners.length > 0
-                                    ? probableWinners.map((player) => player.name).join(', ')
-                                    : 'Ainda não há premiados definidos.'}
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-base shrink-0">🏆</span>
+                                <span className="truncate">
+                                  <strong>{isOfficialRanking ? 'Premiados:' : 'Prováveis premiados:'}</strong>{' '}
+                                  {probableWinners.map((player) => player.name).join(', ')}
                                 </span>
                               </div>
-                              <span className="text-[10px] bg-[#00e676]/15 text-[#00e676] px-2 py-0.5 rounded font-bold uppercase shrink-0">
-                                {isOfficialRanking ? 'Ranking oficial' : 'Ranking parcial'}
-                              </span>
+                            </div>
+                          )}
+
+                          {/* Tabela de ranking */}
+                          <div className="bg-[#181c22] rounded-xl border border-outline-variant overflow-hidden">
+                            <div className="grid grid-cols-[40px_1fr_80px_68px] items-center px-3 py-2 border-b border-outline-variant bg-surface-container text-on-surface-variant uppercase tracking-wider text-[10px] font-bold">
+                              <div className="text-center">Pos</div>
+                              <div>Apostador</div>
+                              <div className="text-center">Status</div>
+                              <div className="text-right">Pts</div>
                             </div>
 
-                            <div className="bg-[#181c22] rounded-xl border border-outline-variant overflow-hidden">
-                              <div className="grid grid-cols-[48px_1fr_90px_76px] items-center px-4 py-3 border-b border-outline-variant bg-surface-container text-on-surface-variant uppercase tracking-wider text-[11px] font-bold">
-                                <div className="text-center">Pos</div>
-                                <div>Apostador</div>
-                                <div className="text-center">Status</div>
-                                <div className="text-right">Pontos</div>
-                              </div>
-
-                              <div className="divide-y divide-outline-variant/30">
-                                {participants.map((player) => {
-                                  const isUserCurrent = player.isCurrentUser;
-
-                                  return (
-                                    <div
-                                      key={`${pool.id}-${player.rank}-${player.name}`}
-                                      className={`grid grid-cols-[48px_1fr_90px_76px] items-center px-4 py-3 transition-colors ${
-                                        isUserCurrent
-                                          ? 'bg-[#1F2937] border-l-4 border-l-[#00e676]'
-                                          : 'hover:bg-surface-variant/20'
-                                      }`}
-                                    >
-                                      <div className={`text-center font-display-score text-sm font-extrabold ${player.prizeZone ? 'text-[#ffdb3c]' : 'text-on-surface-variant'}`}>
-                                        {player.rank}º
-                                      </div>
-
-                                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                                        <UserAvatar
-                                          className="h-7 w-7"
-                                          initialsClassName="text-[9px] tracking-[0.12em]"
-                                          name={player.name}
-                                          src={player.avatar}
-                                          title={player.name}
-                                        />
-                                        <span className={`text-xs font-medium truncate ${isUserCurrent ? 'text-primary font-bold' : 'text-on-surface'}`}>
-                                          {player.name} {isUserCurrent && '(Você)'}
-                                        </span>
-                                      </div>
-
-                                      <div className="text-center">
-                                        <span className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                          player.prizeZone
-                                            ? 'bg-[#00e676]/10 text-[#00e676] border border-[#00e676]/30'
-                                            : 'bg-white/5 text-on-surface-variant border border-white/10'
-                                        }`}>
-                                          {player.prizeLabel || 'Em disputa'}
-                                        </span>
-                                      </div>
-
-                                      <div className={`text-right font-display-score text-sm font-extrabold ${player.prizeZone ? 'text-[#00e676]' : 'text-on-surface'}`}>
-                                        {player.points} pts
-                                      </div>
+                            <div className="divide-y divide-outline-variant/30">
+                              {/* TOP 3 — sempre visíveis */}
+                              {top3.map((player) => {
+                                const isUserCurrent = player.isCurrentUser;
+                                const medalEmoji = player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : '🥉';
+                                return (
+                                  <div
+                                    key={`${pool.id}-top-${player.rank}-${player.name}`}
+                                    className={`grid grid-cols-[40px_1fr_80px_68px] items-center px-3 py-2.5 transition-colors ${
+                                      isUserCurrent
+                                        ? 'bg-[#1F2937] border-l-4 border-l-[#00e676]'
+                                        : 'hover:bg-surface-variant/20'
+                                    }`}
+                                  >
+                                    <div className="text-center text-base leading-none">{medalEmoji}</div>
+                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      <UserAvatar
+                                        className="h-6 w-6 shrink-0"
+                                        initialsClassName="text-[8px] tracking-[0.12em]"
+                                        name={player.name}
+                                        src={player.avatar}
+                                        title={player.name}
+                                      />
+                                      <span className={`text-xs font-medium truncate ${isUserCurrent ? 'text-primary font-bold' : 'text-on-surface'}`}>
+                                        {player.name} {isUserCurrent && '(Você)'}
+                                      </span>
                                     </div>
-                                  );
-                                })}
-                              </div>
+                                    <div className="text-center">
+                                      <span className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                        player.prizeZone
+                                          ? 'bg-[#00e676]/10 text-[#00e676] border border-[#00e676]/30'
+                                          : 'bg-white/5 text-on-surface-variant border border-white/10'
+                                      }`}>
+                                        {player.prizeLabel || 'Em disputa'}
+                                      </span>
+                                    </div>
+                                    <div className={`text-right font-display-score text-sm font-extrabold ${player.prizeZone ? 'text-[#00e676]' : 'text-on-surface'}`}>
+                                      {player.points} pts
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Demais apostadores — visíveis apenas ao expandir */}
+                              {showAll && rest.map((player) => {
+                                const isUserCurrent = player.isCurrentUser;
+                                return (
+                                  <div
+                                    key={`${pool.id}-rest-${player.rank}-${player.name}`}
+                                    className={`grid grid-cols-[40px_1fr_80px_68px] items-center px-3 py-2.5 transition-colors ${
+                                      isUserCurrent
+                                        ? 'bg-[#1F2937] border-l-4 border-l-[#00e676]'
+                                        : 'hover:bg-surface-variant/20'
+                                    }`}
+                                  >
+                                    <div className={`text-center font-display-score text-sm font-extrabold ${player.prizeZone ? 'text-[#ffdb3c]' : 'text-on-surface-variant'}`}>
+                                      {player.rank}º
+                                    </div>
+                                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                                      <UserAvatar
+                                        className="h-6 w-6 shrink-0"
+                                        initialsClassName="text-[8px] tracking-[0.12em]"
+                                        name={player.name}
+                                        src={player.avatar}
+                                        title={player.name}
+                                      />
+                                      <span className={`text-xs font-medium truncate ${isUserCurrent ? 'text-primary font-bold' : 'text-on-surface'}`}>
+                                        {player.name} {isUserCurrent && '(Você)'}
+                                      </span>
+                                    </div>
+                                    <div className="text-center">
+                                      <span className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                        player.prizeZone
+                                          ? 'bg-[#00e676]/10 text-[#00e676] border border-[#00e676]/30'
+                                          : 'bg-white/5 text-on-surface-variant border border-white/10'
+                                      }`}>
+                                        {player.prizeLabel || 'Em disputa'}
+                                      </span>
+                                    </div>
+                                    <div className={`text-right font-display-score text-sm font-extrabold ${player.prizeZone ? 'text-[#00e676]' : 'text-on-surface'}`}>
+                                      {player.points} pts
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          </>
-                        )}
-                      </div>
-                    )}
+                          </div>
+
+                          {/* Botão Ver todos / Recolher */}
+                          {rest.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedRankingPoolIds((prev) =>
+                                  prev.includes(pool.id)
+                                    ? prev.filter((id) => id !== pool.id)
+                                    : [...prev, pool.id]
+                                )
+                              }
+                              className="w-full py-2 text-[11px] font-bold text-on-surface-variant hover:text-on-surface border border-outline-variant/50 rounded-lg hover:border-outline-variant transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              {showAll ? (
+                                <>
+                                  <ChevronRight className="w-3.5 h-3.5 -rotate-90" />
+                                  Recolher ranking
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronRight className="w-3.5 h-3.5 rotate-90" />
+                                  Ver todos os {participants.length} apostadores
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         )}
 

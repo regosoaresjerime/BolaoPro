@@ -6,10 +6,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Trophy, Bell, Users, Coins, HelpCircle, Check, Settings, Play, ArrowUpRight, 
-  ChevronRight, Sparkles, Smartphone, Clock, Calendar, CheckCircle2, CircleDollarSign, Send, ArrowRightLeft, Radio, Pencil, Trash2, X
+  ChevronRight, Sparkles, Smartphone, Clock, Calendar, CheckCircle2, CircleDollarSign, Send, ArrowRightLeft, Radio, Pencil, Trash2, X, Lock
 } from 'lucide-react';
 import { Match, TenantSettings, AlertNotification, Pool } from '../types';
 import { getPoolEstimatedPrizeValue } from '../lib/poolPrize';
+import { SupabaseService } from '../lib/supabaseService';
 import { getOfficialTeamFlagUrl } from '../lib/teamFlagSource';
 import { COPA_2026_TEAMS } from '../data/teams';
 import { INITIAL_MATCHES } from '../data/mockData';
@@ -2013,6 +2014,31 @@ export default function AdminDashboard({
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
+                          {!p.finalizedAt && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm(`Tem certeza que deseja encerrar o bolão "${p.name}" agora? Essa ação torna o ranking oficial imediatamente.`)) return;
+                                const result = await SupabaseService.finalizePool(p.id);
+                                if (result.success) {
+                                  alert('Bolão encerrado com sucesso! O ranking agora é oficial.');
+                                  // Recarregar lista de bolões
+                                  window.location.reload();
+                                } else {
+                                  alert('Erro ao encerrar bolão: ' + (result.error || 'Erro desconhecido'));
+                                }
+                              }}
+                              className="p-1.5 rounded-lg border border-outline-variant text-on-surface-variant hover:text-[#ffe16d] hover:border-[#ffe16d]/30 cursor-pointer"
+                              title="Encerrar bolão (tornar ranking oficial)"
+                            >
+                              <Lock className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {p.finalizedAt && (
+                            <span className="text-[9px] bg-[#ffe16d]/10 text-[#ffe16d] border border-[#ffe16d]/30 px-1.5 py-0.5 rounded font-bold uppercase">
+                              🏁 Encerrado
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleDeleteExistingPool(p)}

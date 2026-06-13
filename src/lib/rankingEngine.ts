@@ -191,20 +191,22 @@ export function calculateScoreBetRankingRows(params: {
   currentUserName?: string;
 }): BettorBetRankingRow[] {
   const { picks, selectedMatchIds, matches, currentUserId, currentUserName } = params;
-  const finishedMatches = matches.filter(
+  // Avaliar TODOS os jogos selecionados que têm placar definido (0x0 ou acima).
+  // A API atualiza os placares em tempo real; jogos não iniciados terão score_a=0, score_b=0.
+  const evaluatedMatches = matches.filter(
     (match) =>
       selectedMatchIds.includes(match.id) &&
-      match.status === 'finished' &&
       match.scoreA !== null &&
       match.scoreB !== null
   );
 
-  if (finishedMatches.length === 0) return [];
+  // Se nenhum jogo tem placar ainda, retorna vazio
+  if (evaluatedMatches.length === 0) return [];
 
   const picksByBet = new Map<string, RankingPickRecord[]>();
 
   picks.forEach((pick) => {
-    if (!pick.betId || !pick.userId || !finishedMatches.some((match) => match.id === pick.matchId)) return;
+    if (!pick.betId || !pick.userId || !evaluatedMatches.some((match) => match.id === pick.matchId)) return;
     const rows = picksByBet.get(pick.betId) || [];
     rows.push(pick);
     picksByBet.set(pick.betId, rows);
@@ -214,8 +216,9 @@ export function calculateScoreBetRankingRows(params: {
 
   picksByBet.forEach((betPicks, betId) => {
     const picksMap = new Map(betPicks.map((pick) => [pick.matchId, pick]));
-    const allFinishedCovered = finishedMatches.every((match) => picksMap.has(match.id));
-    if (!allFinishedCovered) return;
+    // O apostador precisa ter palpites em TODOS os jogos avaliados
+    const allCovered = evaluatedMatches.every((match) => picksMap.has(match.id));
+    if (!allCovered) return;
 
     let points = 0;
     let exactHits = 0;
@@ -229,26 +232,30 @@ export function calculateScoreBetRankingRows(params: {
         : latestTimestamp;
     }, undefined);
 
-    finishedMatches.forEach((match) => {
+    evaluatedMatches.forEach((match) => {
       const pick = picksMap.get(match.id);
       if (!pick || pick.scoreA === null || pick.scoreB === null || match.scoreA === null || match.scoreB === null) {
         return;
       }
 
-      if (pick.scoreA === match.scoreA && pick.scoreB === match.scoreB) {
+      // Usa placar atual da API (que inicia 0x0 e atualiza em tempo real)
+      const currentScoreA = match.scoreA;
+      const currentScoreB = match.scoreB;
+
+      if (pick.scoreA === currentScoreA && pick.scoreB === currentScoreB) {
         points += 25;
         exactHits += 1;
         return;
       }
 
       const pickOutcome = getMatchOutcome(pick.scoreA, pick.scoreB);
-      const officialOutcome = getMatchOutcome(match.scoreA, match.scoreB);
+      const currentOutcome = getMatchOutcome(currentScoreA, currentScoreB);
 
-      if (pickOutcome === officialOutcome) {
+      if (pickOutcome === currentOutcome) {
         const pickDiff = pick.scoreA - pick.scoreB;
-        const officialDiff = match.scoreA - match.scoreB;
+        const currentDiff = currentScoreA - currentScoreB;
 
-        if (pickDiff === officialDiff) {
+        if (pickDiff === currentDiff) {
           points += 10;
           partialHits += 1;
         } else {
@@ -265,11 +272,11 @@ export function calculateScoreBetRankingRows(params: {
       name: getParticipantName(firstPick, currentUserId, currentUserName),
       avatar: firstPick.avatarUrl || DEFAULT_AVATAR,
       points,
-      accuracy: Math.round(((exactHits + partialHits + resultHits) / finishedMatches.length) * 100),
+      accuracy: Math.round(((exactHits + partialHits + resultHits) / evaluatedMatches.length) * 100),
       exactHits,
       partialHits,
       resultHits,
-      evaluatedCount: finishedMatches.length,
+      evaluatedCount: evaluatedMatches.length,
       isCurrentUser: firstPick.userId === currentUserId,
       finalizedAt
     });

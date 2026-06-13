@@ -112,6 +112,7 @@ export interface Pool {
   memberCount: number;
   description: string;
   bettingDeadline?: string;
+  finalizedAt?: string;
   selectedTeams?: string[];
   selectedMatchIds?: string[];
   feeType?: 'percent' | 'fixed';
