@@ -262,10 +262,14 @@ export default function Onboarding({ onSuccess, accumulatedFeePool, poolsList, m
         }
 
         const res = await SupabaseService.signUp(fullName, email, password, cpfDigits, phoneDigits);
-        if (res.error) {
+        if (res.user) {
+          // Aviso não-bloqueante (ex: CPF duplicado) — loga o usuário mas exibe a mensagem
+          if (res.error) {
+            setErrorMessage(res.error);
+          }
+          onSuccess(res.user.fullName, res.user.email, res.user.id, res.user.isAdmin, res.user.cpf ?? cpfDigits, phoneDigits);
+        } else if (res.error) {
           setErrorMessage(res.error);
-        } else if (res.user) {
-          onSuccess(res.user.fullName, res.user.email, res.user.id, res.user.isAdmin, cpfDigits, phoneDigits);
         }
       } else {
         if (!email || !password) {

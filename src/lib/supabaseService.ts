@@ -446,21 +446,48 @@ export class SupabaseService {
         // Importante: a RLS desta tabela valida `auth.uid() = user_id`, então
         // precisamos gravar `id = data.user.id` E `user_id = data.user.id`
         // (a coluna user_id existe separada da PK id).
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            user_id: data.user.id,
-            full_name: fullName,
-            email: email,
-            cpf: cpf || null,
-            telefone: telefone || null,
-            balance: 0.00,
-            total_points: 0,
-            is_admin: isAdminUser
-          });
+        const profilePayload = {
+          id: data.user.id,
+          user_id: data.user.id,
+          full_name: fullName,
+          email: email,
+          cpf: cpf ? cpf.replace(/\D/g, '') : null,
+          telefone: telefone ? telefone.replace(/\D/g, '') : null,
+          balance: 0.00,
+          total_points: 0,
+          is_admin: isAdminUser
+        };
 
-        if (profileError) console.error('Error inserting profile:', profileError);
+        // Usa upsert para evitar erro de PK duplicada (usuário já existia no auth mas não tinha perfil)
+        let { error: profileError } = await supabase
+          .from('profiles')
+          .upsert(profilePayload, { onConflict: 'id' });
+
+        // Erro 23505 = violação de unique constraint (ex: idx_profiles_cpf_unique)
+        // CPF já cadastrado em outro perfil — cria o perfil sem CPF e avisa para atualizar depois
+        if (profileError && profileError.code === '23505' && profileError.message?.includes('cpf')) {
+          console.warn('[signUp] CPF já existe em outro perfil, criando perfil sem CPF:', profileError);
+          const { error: retryError } = await supabase
+            .from('profiles')
+            .upsert({ ...profilePayload, cpf: null }, { onConflict: 'id' });
+          if (retryError) {
+            console.error('[signUp] Erro ao criar perfil mesmo sem CPF:', retryError);
+          } else {
+            return {
+              user: {
+                id: data.user.id,
+                fullName,
+                email,
+                isAdmin: isAdminUser,
+                cpf: undefined,
+                telefone
+              },
+              error: 'Conta criada, mas o CPF informado já está associado a outro perfil. Você pode atualizá-lo na tela de perfil.'
+            };
+          }
+        } else if (profileError) {
+          console.error('[signUp] Error upserting profile:', profileError);
+        }
 
         return {
           user: {

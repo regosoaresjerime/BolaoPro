@@ -3247,10 +3247,6 @@ export default function ApostadorDashboard({
                 <span className="text-on-surface-variant">Taxa de Inscrição Única (Pix)</span>
                 <span className="font-bold text-[#00e676]">R$ {bottomSheetData.fee.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between py-2">
-                <span className="text-on-surface-variant">Dedução Administrativa da Banca</span>
-                <span className="text-on-surface-variant">20% retidos pelo Organizador</span>
-              </div>
               <div className="flex justify-between py-2 bg-[#00e676]/10 px-2 rounded mt-1">
                 <span className="text-[#ffe16d] font-bold">Custo por Palpite Realizado</span>
                 <span className="font-bold text-[#00e676] uppercase">Grátis (R$ 0,00)</span>
