@@ -100,7 +100,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
   {
     "id": "m8",
     "group": "GRUPO D • FASE DE GRUPOS",
-    "dateText": "13/06/2026, 01:00\\",
+    "dateText": "14/06/2026, 01:00",
     "teamA": "AUS",
     "teamB": "TUR",
     "teamAFlag": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=150&auto=format&fit=crop",
@@ -108,7 +108,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
     "status": "scheduled",
     "scoreA": null,
     "scoreB": null,
-    "startedAt": "2026-06-13T01:00\\:00.000Z"
+    "startedAt": "2026-06-14T01:00:00.000Z"
   },
   {
     "id": "m9",
@@ -256,7 +256,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
   {
     "id": "m20",
     "group": "GRUPO J • FASE DE GRUPOS",
-    "dateText": "16/06/2026, 01:00\\",
+    "dateText": "17/06/2026, 01:00",
     "teamA": "AUT",
     "teamB": "JOR",
     "teamAFlag": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=150&auto=format&fit=crop",
@@ -264,7 +264,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
     "status": "scheduled",
     "scoreA": null,
     "scoreB": null,
-    "startedAt": "2026-06-16T01:00\\:00.000Z"
+    "startedAt": "2026-06-17T01:00:00.000Z"
   },
   {
     "id": "m21",
@@ -412,7 +412,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
   {
     "id": "m32",
     "group": "GRUPO D • FASE DE GRUPOS",
-    "dateText": "19/06/2026, 00:00\\",
+    "dateText": "20/06/2026, 00:00",
     "teamA": "TUR",
     "teamB": "PAR",
     "teamAFlag": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=150&auto=format&fit=crop",
@@ -420,7 +420,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
     "status": "scheduled",
     "scoreA": null,
     "scoreB": null,
-    "startedAt": "2026-06-19T00:00\\:00.000Z"
+    "startedAt": "2026-06-20T00:00:00.000Z"
   },
   {
     "id": "m33",
@@ -568,7 +568,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
   {
     "id": "m44",
     "group": "GRUPO J • FASE DE GRUPOS",
-    "dateText": "22/06/2026, 00:00\\",
+    "dateText": "23/06/2026, 00:00",
     "teamA": "JOR",
     "teamB": "ALG",
     "teamAFlag": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=150&auto=format&fit=crop",
@@ -576,7 +576,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
     "status": "scheduled",
     "scoreA": null,
     "scoreB": null,
-    "startedAt": "2026-06-22T00:00\\:00.000Z"
+    "startedAt": "2026-06-23T00:00:00.000Z"
   },
   {
     "id": "m45",
@@ -841,7 +841,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
   {
     "id": "m65",
     "group": "GRUPO G • FASE DE GRUPOS",
-    "dateText": "26/06/2026, 00:00\\",
+    "dateText": "27/06/2026, 00:00",
     "teamA": "EGY",
     "teamB": "IRN",
     "teamAFlag": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=150&auto=format&fit=crop",
@@ -849,12 +849,12 @@ const RAW_INITIAL_MATCHES: Match[] = [
     "status": "scheduled",
     "scoreA": null,
     "scoreB": null,
-    "startedAt": "2026-06-26T00:00\\:00.000Z"
+    "startedAt": "2026-06-27T00:00:00.000Z"
   },
   {
     "id": "m66",
     "group": "GRUPO G • FASE DE GRUPOS",
-    "dateText": "26/06/2026, 00:00\\",
+    "dateText": "27/06/2026, 00:00",
     "teamA": "NZL",
     "teamB": "BEL",
     "teamAFlag": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=150&auto=format&fit=crop",
@@ -862,7 +862,7 @@ const RAW_INITIAL_MATCHES: Match[] = [
     "status": "scheduled",
     "scoreA": null,
     "scoreB": null,
-    "startedAt": "2026-06-26T00:00\\:00.000Z"
+    "startedAt": "2026-06-27T00:00:00.000Z"
   },
   {
     "id": "m67",

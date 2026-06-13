@@ -15,6 +15,7 @@ import { COPA_2026_TEAMS } from '../data/teams';
 import { INITIAL_MATCHES } from '../data/mockData';
 import SearchableTeamSelect from './SearchableTeamSelect';
 import TeamAvatar from './TeamAvatar';
+import { fetchLiveScores } from '../lib/footballApi';
 
 
 interface AdminDashboardProps {
@@ -300,6 +301,7 @@ export default function AdminDashboard({
 
   // Tooltip simple display states
   const [showCommissionTooltip, setShowCommissionTooltip] = useState(false);
+  const [isSyncingScores, setIsSyncingScores] = useState(false);
 
   const availableTraditionalMatches = useMemo(
     () => INITIAL_MATCHES.filter((match) => !isPodiumMatch(match)),
@@ -328,6 +330,41 @@ export default function AdminDashboard({
   const firstPlaceAward = netPremioProjection * (tenantSettings.firstPlacePct / 100);
   const secondPlaceAward = netPremioProjection * (tenantSettings.secondPlacePct / 100);
   const thirdPlaceAward = netPremioProjection * (tenantSettings.thirdPlacePct / 100);
+
+  const handleSyncScores = async () => {
+    try {
+      setIsSyncingScores(true);
+      const liveData = await fetchLiveScores();
+      let updatedCount = 0;
+
+      for (const apiMatch of liveData) {
+        const targetMatch = manageableMatches.find(m => {
+          const codeA = getTeamCodeFromMatchLabel(m.teamA);
+          const codeB = getTeamCodeFromMatchLabel(m.teamB);
+          return (codeA === apiMatch.homeTeamTla && codeB === apiMatch.awayTeamTla) ||
+                 (codeA === apiMatch.awayTeamTla && codeB === apiMatch.homeTeamTla);
+        });
+
+        if (targetMatch && (apiMatch.homeScore !== null || apiMatch.awayScore !== null)) {
+          const isHomeA = getTeamCodeFromMatchLabel(targetMatch.teamA) === apiMatch.homeTeamTla;
+          
+          const newScoreA = isHomeA ? apiMatch.homeScore : apiMatch.awayScore;
+          const newScoreB = isHomeA ? apiMatch.awayScore : apiMatch.homeScore;
+
+          if (targetMatch.scoreA !== newScoreA || targetMatch.scoreB !== newScoreB) {
+             updateMatchList(targetMatch.id, newScoreA as number, newScoreB as number);
+             updatedCount++;
+          }
+        }
+      }
+      
+      alert(updatedCount > 0 ? `${updatedCount} placares sincronizados com sucesso!` : 'Nenhuma alteração de placar encontrada no momento.');
+    } catch (err: any) {
+      alert('Falha ao sincronizar: ' + err.message);
+    } finally {
+      setIsSyncingScores(false);
+    }
+  };
 
   const resetPoolForm = () => {
     setEditingPoolId(null);
@@ -1139,9 +1176,18 @@ export default function AdminDashboard({
                   Todas as partidas oficiais ficam disponiveis aqui, em ordem cronologica, para lancamento dos placares conforme forem acontecendo.
                 </p>
               </div>
-              <span className="text-[11px] px-3 py-1 rounded-full border border-outline-variant bg-surface-container-low text-on-surface-variant">
-                {manageableMatches.length} jogos
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncScores}
+                  disabled={isSyncingScores}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-high hover:bg-surface border border-outline-variant text-[#00E676] text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSyncingScores ? 'Sincronizando...' : '🔄 Sincronizar ao Vivo'}
+                </button>
+                <span className="text-[11px] px-3 py-1 rounded-full border border-outline-variant bg-surface-container-low text-on-surface-variant">
+                  {manageableMatches.length} jogos
+                </span>
+              </div>
             </div>
 
             {/* list matches grouped by stats */}
