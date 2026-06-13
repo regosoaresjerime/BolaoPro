@@ -13,6 +13,7 @@ import Onboarding from './components/Onboarding';
 import ApostadorDashboard from './components/ApostadorDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import SpecsViewer from './components/SpecsViewer';
+import TeamAvatar from './components/TeamAvatar';
 
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 import { SupabaseService } from './lib/supabaseService';
@@ -308,6 +309,17 @@ export default function App() {
         // re-autenticação silenciosa de usuário deletado/expirado.
         localStorage.removeItem('bpro_user');
         setUser(null);
+
+        if (isSupabaseConfigured) {
+          try {
+            const pools = await SupabaseService.fetchPools();
+            if (pools) setPoolsList(pools);
+            const dbMatches = await SupabaseService.fetchMatches();
+            if (dbMatches) setMatchesList(mergeMatchesWithDefaults(dbMatches));
+          } catch (err) {
+            console.error('Error fetching public data:', err);
+          }
+        }
       } catch (err) {
         console.error('Error recovering user session:', err);
         localStorage.removeItem('bpro_user');
@@ -604,6 +616,7 @@ export default function App() {
   const currentPersona = (activePersona === 'admin' || activePersona === 'specs') && !user?.isAdmin
     ? 'bettor'
     : activePersona;
+  const brazilTeam = COPA_2026_TEAMS.find((team) => team.code === 'BRA');
 
   return (
     <div className="min-h-screen bg-[#0D1117] text-[#dfe2eb] flex flex-col font-sans selection:bg-[#00E676]/30 relative overflow-x-hidden">
@@ -618,11 +631,17 @@ export default function App() {
           
           {/* Branded Logo Name: strictly following literal humble guidelines */}
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-gradient-to-tr from-[#00E676] to-[#00b248] flex items-center justify-center font-bold text-[#00210b] shadow-[0_0_15px_rgba(0,230,118,0.3)]">
-              ⚽
-            </div>
+            <TeamAvatar
+              accent="rgba(27, 166, 81, 0.55)"
+              accentDark="#07140d"
+              className="w-8 h-8"
+              fallback={brazilTeam?.flag || '🇧🇷'}
+              fallbackClassName="text-sm tracking-normal"
+              name={brazilTeam?.name || 'Brasil'}
+              title="Seleção Brasileira"
+            />
             <div className="flex items-center">
-              <span className="font-display-score font-extrabold tracking-tight italic text-sm md:text-xl text-white leading-none">BPRO 2026</span>
+              <span className="font-display-score font-extrabold tracking-tight italic text-sm md:text-xl text-white leading-none">BolãoPro</span>
             </div>
           </div>
 
@@ -731,6 +750,8 @@ export default function App() {
               onAcceptLgpd={() => setLgpdAccepted(true)}
               accumulatedFeePool={accumulatedFeePool}
               setAccumulatedFeePool={setAccumulatedFeePool}
+              poolsList={poolsList}
+              matchesList={matchesList}
             />
           )
         ) : currentPersona === 'admin' ? (
