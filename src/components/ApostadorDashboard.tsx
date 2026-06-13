@@ -445,9 +445,10 @@ export default function ApostadorDashboard({
     const counts: Record<string, number> = {};
     const poolMap = new Map(poolsList.map((pool) => [pool.id, pool]));
 
-    Object.entries(userPicks).forEach(([poolId, groupPicks]) => {
+    Object.entries(userPicks).forEach(([poolId, _groupPicks]) => {
       const pool = poolMap.get(poolId);
       if (!pool) return;
+      const groupPicks = _groupPicks as UserPick[];
 
       const picksByBetId: Record<string, UserPick[]> = {};
       groupPicks.forEach((pick) => {
