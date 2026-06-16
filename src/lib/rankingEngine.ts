@@ -136,7 +136,6 @@ function accumulateRankingRowsByUser(betRows: BettorBetRankingRow[]) {
   });
 
   return Array.from(totalsByUser.values())
-    .filter((row) => row.points > 0)
     .sort(compareAccumulatedRows);
 }
 
@@ -191,16 +190,15 @@ export function calculateScoreBetRankingRows(params: {
   currentUserName?: string;
 }): BettorBetRankingRow[] {
   const { picks, selectedMatchIds, matches, currentUserId, currentUserName } = params;
-  // Avaliar TODOS os jogos selecionados que têm placar definido (0x0 ou acima).
-  // A API atualiza os placares em tempo real; jogos não iniciados terão score_a=0, score_b=0.
+  // Regra de negócio: todos os jogos selecionados do bolão entram na avaliação.
+  // Jogos com scoreA/scoreB nulos no banco são tratados como 0x0 provisório,
+  // pois o placar 0x0 é o estado inicial oficial antes do apito inicial.
+  // O ranking gerado é PARCIAL até o jogo ser marcado como 'finished'.
   const evaluatedMatches = matches.filter(
-    (match) =>
-      selectedMatchIds.includes(match.id) &&
-      match.scoreA !== null &&
-      match.scoreB !== null
+    (match) => selectedMatchIds.includes(match.id)
   );
 
-  // Se nenhum jogo tem placar ainda, retorna vazio
+  // Se não há nenhum jogo selecionado, retorna vazio
   if (evaluatedMatches.length === 0) return [];
 
   const picksByBet = new Map<string, RankingPickRecord[]>();
@@ -234,13 +232,13 @@ export function calculateScoreBetRankingRows(params: {
 
     evaluatedMatches.forEach((match) => {
       const pick = picksMap.get(match.id);
-      if (!pick || pick.scoreA === null || pick.scoreB === null || match.scoreA === null || match.scoreB === null) {
+      if (!pick || pick.scoreA === null || pick.scoreB === null) {
         return;
       }
 
-      // Usa placar atual da API (que inicia 0x0 e atualiza em tempo real)
-      const currentScoreA = match.scoreA;
-      const currentScoreB = match.scoreB;
+      // Placar provisório: null no banco = 0x0 (antes do jogo começar)
+      const currentScoreA = match.scoreA ?? 0;
+      const currentScoreB = match.scoreB ?? 0;
 
       if (pick.scoreA === currentScoreA && pick.scoreB === currentScoreB) {
         points += 25;

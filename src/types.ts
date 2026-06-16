@@ -119,4 +119,5 @@ export interface Pool {
   feeValue?: number;
   maxParticipants?: number;
   modality?: 'score' | 'podium';
+  prizedPlaces?: number;
 }

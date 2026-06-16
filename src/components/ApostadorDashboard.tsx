@@ -699,18 +699,30 @@ export default function ApostadorDashboard({
       { type: 'topTeams' as const, key: 'top-teams-slide' }
     ];
   }, [agendaDateFilter, agendaTeamFilter, lobbyMatches]);
+  // Lista de bolões ativos (não finalizados) para o carrossel da Lobby
+  const activePoolsList = useMemo(() => {
+    return poolsList.filter((pool) => {
+      if (pool.finalizedAt) return false;
+      const poolMatchesLocal = getPoolMatches(pool);
+      const deadlineTs = getPoolDeadlineTimestamp(pool, poolMatchesLocal);
+      // Exclui bolões cujo prazo expirou há mais de 3 horas
+      if (deadlineTs !== null && currentTimestamp >= deadlineTs + 3 * 60 * 60 * 1000) return false;
+      return true;
+    });
+  }, [poolsList, currentTimestamp]);
+
   const selectedPoolIndex = useMemo(() => {
-    const index = poolsList.findIndex((pool) => pool.id === selectedPoolId);
+    const index = activePoolsList.findIndex((pool) => pool.id === selectedPoolId);
     return index >= 0 ? index : 0;
-  }, [poolsList, selectedPoolId]);
+  }, [activePoolsList, selectedPoolId]);
   const goToPoolIndex = React.useCallback((nextIndex: number) => {
-    if (!poolsList.length) return;
-    const normalizedIndex = ((nextIndex % poolsList.length) + poolsList.length) % poolsList.length;
-    const nextPoolId = poolsList[normalizedIndex]?.id;
+    if (!activePoolsList.length) return;
+    const normalizedIndex = ((nextIndex % activePoolsList.length) + activePoolsList.length) % activePoolsList.length;
+    const nextPoolId = activePoolsList[normalizedIndex]?.id;
     if (nextPoolId) {
       setSelectedPoolId(nextPoolId);
     }
-  }, [poolsList]);
+  }, [activePoolsList]);
   const goToAgendaIndex = React.useCallback((nextIndex: number) => {
     if (!agendaSlides.length) return;
     const normalizedIndex = ((nextIndex % agendaSlides.length) + agendaSlides.length) % agendaSlides.length;
@@ -1565,7 +1577,7 @@ export default function ApostadorDashboard({
                   className="flex transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
                   style={{ transform: `translateX(-${selectedPoolIndex * 100}%)` }}
                 >
-                  {poolsList.map((pool, index) => {
+                  {activePoolsList.map((pool, index) => {
                     const isSelected = selectedPoolId === pool.id;
                     const estimatedPrizeValue = getPoolEstimatedPrizeValue(pool, tenantSettings);
                     const isDescriptionExpanded = expandedPoolDescriptionId === pool.id;
@@ -1617,8 +1629,12 @@ export default function ApostadorDashboard({
                                   </p>
                                 </div>
                               </div>
-                              <span className="rounded-full border border-white/10 bg-black/60 px-2 py-1 text-[10px] uppercase tracking-widest text-white/85 backdrop-blur-sm">
-                                {pool.memberCount} ativos
+                              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-widest backdrop-blur-sm font-bold ${
+                                isPoolClosed
+                                  ? 'border-red-400/30 bg-red-900/50 text-red-300'
+                                  : 'border-[#00e676]/30 bg-[#00e676]/10 text-[#7fffb0]'
+                              }`}>
+                                {isPoolClosed ? 'Encerrado' : 'Ativo'}
                               </span>
                             </div>
                             {poolHeroTeams.length > 0 && (
@@ -1740,9 +1756,9 @@ export default function ApostadorDashboard({
                 </div>
               </div>
 
-              {poolsList.length > 1 && (
+              {activePoolsList.length > 1 && (
                 <div className="flex items-center justify-center gap-2">
-                  {poolsList.map((pool, index) => (
+                  {activePoolsList.map((pool, index) => (
                     <button
                       key={`pool-dot-${pool.id}`}
                       type="button"
@@ -3464,80 +3480,43 @@ export default function ApostadorDashboard({
       )}
 
 
-      {/* Main Persistent Bottom Navigation: exactly simulated design rules */}
-      <nav className="bg-surface-container-lowest/90 backdrop-blur-xl border-t border-outline-variant fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 h-20 rounded-t-xl max-w-[650px] mx-auto">
-        <button 
-          onClick={() => { setActiveTab('dashboard'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 ${
-            activeTab === 'dashboard' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <AppWindow className="w-5 h-5 mb-1" />
-          <span className="font-label-sm text-[10px]">Lobby</span>
-        </button>
-
-        <button 
-          onClick={() => { setActiveTab('palpites'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 ${
-            activeTab === 'palpites' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <Star className="w-5 h-5 mb-1" />
-          <span className="font-label-sm text-[10px]">Palpites</span>
-        </button>
-
-        <button 
-          onClick={() => { setActiveTab('meus-palpites'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 ${
-            activeTab === 'meus-palpites' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <Star className="w-5 h-5 mb-1" />
-          <span className="font-label-sm text-[10px]">Meus Palpites</span>
-        </button>
-
-        <button 
-          onClick={() => { setActiveTab('ranking'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 ${
-            activeTab === 'ranking' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <Trophy className="w-5 h-5 mb-1" />
-          <span className="font-label-sm text-[10px]">Classificação</span>
-        </button>
-
-        <button 
-          onClick={() => { setActiveTab('alerts'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 relative ${
-            activeTab === 'alerts' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <Bell className="w-5 h-5 mb-1" />
-          <span className="font-label-sm text-[10px]">Alertas</span>
-          {alertsList.some(a => a.unread) && (
-            <span className="absolute top-2 right-6 w-2 h-2 rounded-full bg-error"></span>
-          )}
-        </button>
-
-        <button 
-          onClick={() => { setActiveTab('perfil'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 ${
-            activeTab === 'perfil' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <User className="w-5 h-5 mb-1" />
-          <span className="font-label-sm text-[10px]">Perfil</span>
-        </button>
-
-        <button 
-          onClick={() => { setActiveTab('times'); setShowBottomSheet(false); }}
-          className={`flex flex-col items-center justify-center pt-2 hover:text-on-surface transition-all active:scale-90 duration-150 flex-1 ${
-            activeTab === 'times' ? 'text-primary border-t-2 border-primary font-bold' : 'text-on-surface-variant'
-          }`}
-        >
-          <Users className="w-5 h-5 mb-1 text-[#00E676]" />
-          <span className="font-label-sm text-[10px]">Times</span>
-        </button>
+      {/* Main Persistent Bottom Navigation */}
+      <nav className="bg-[#0a0e14]/95 backdrop-blur-xl border-t border-[#1f2937] fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 h-[72px] max-w-[650px] mx-auto">
+        {([
+          { id: 'dashboard', label: 'Lobby', icon: AppWindow, badge: false },
+          { id: 'palpites', label: 'Palpites', icon: Star, badge: false },
+          { id: 'meus-palpites', label: 'Meus Palpites', icon: Star, badge: false },
+          { id: 'ranking', label: 'Classificação', icon: Trophy, badge: false },
+          { id: 'alerts', label: 'Alertas', icon: Bell, badge: alertsList.some(a => a.unread) },
+          { id: 'perfil', label: 'Perfil', icon: User, badge: false },
+          { id: 'times', label: 'Times', icon: Users, badge: false },
+        ] as Array<{ id: typeof activeTab; label: string; icon: React.ComponentType<{ className?: string }>; badge: boolean }>).map(({ id, label, icon: Icon, badge }) => {
+          const isActive = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => { setActiveTab(id as typeof activeTab); setShowBottomSheet(false); }}
+              className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? 'text-[#00e676]'
+                  : 'text-[#5a6a7e] hover:text-[#8ba0b5]'
+              }`}
+            >
+              {isActive && (
+                <span className="absolute inset-0 rounded-xl bg-[#00e676]/20 border border-[#00e676]/40 animate-pulse" style={{ animationDuration: '2.5s' }} />
+              )}
+              <Icon className={`w-5 h-5 relative z-10 transition-all duration-200 ${
+                isActive ? 'drop-shadow-[0_0_6px_rgba(0,230,118,0.6)]' : ''
+              }`} />
+              <span className={`font-label-sm text-[9px] relative z-10 font-bold tracking-wide transition-all duration-200 ${
+                isActive ? 'text-[#00e676]' : 'text-[#5a6a7e]'
+              }`}>{label}</span>
+              {badge && (
+                <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-red-500 z-20" />
+              )}
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

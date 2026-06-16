@@ -1059,9 +1059,9 @@ export class SupabaseService {
       );
 
       // Buscar picks de TODOS os jogos selecionados (não apenas os finalizados)
-      // O placar 0x0 inicial da API será usado para calcular o ranking desde o início
+      // O placar 0x0 inicial da API (seja real ou provisório) será usado para calcular o ranking desde o início
       const matchesWithScore = evaluatedMatches
-        .filter((match) => selectedMatchIds.includes(match.id) && match.scoreA !== null && match.scoreB !== null)
+        .filter((match) => selectedMatchIds.includes(match.id))
         .map((match) => match.id);
 
       if (matchesWithScore.length === 0) return [];
@@ -2043,7 +2043,12 @@ export class SupabaseService {
   /**
    * Update Match scores in Supabase
    */
-  static async updateMatchScore(matchId: string, scoreA: number, scoreB: number): Promise<boolean> {
+  static async updateMatchScore(
+    matchId: string,
+    scoreA: number,
+    scoreB: number,
+    status: 'scheduled' | 'live' | 'finished' = 'finished'
+  ): Promise<boolean> {
     if (!isSupabaseConfigured || !supabase) return false;
 
     try {
@@ -2052,7 +2057,7 @@ export class SupabaseService {
         .update({
           score_a: scoreA,
           score_b: scoreB,
-          status: 'finished',
+          status,
           updated_at: new Date().toISOString()
         })
         .eq('id', matchId);

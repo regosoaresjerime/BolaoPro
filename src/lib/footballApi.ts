@@ -6,6 +6,36 @@ export interface FootballMatchScore {
   status: string;
 }
 
+// Mapeamento dos status da API football-data.org:
+// SCHEDULED  = jogo agendado, não iniciado
+// TIMED      = jogo agendado com horário confirmado
+// IN_PLAY    = jogo em andamento (ao vivo)
+// PAUSED     = jogo pausado (intervalo / prorrogação pausada)
+// FINISHED   = jogo encerrado com resultado oficial definitivo
+// POSTPONED  = jogo adiado para outra data
+// SUSPENDED  = jogo suspenso (motivo externo)
+// CANCELLED  = jogo cancelado
+//
+// Regra de negócio: O ranking considera o placar oficial SOMENTE quando
+// o status do jogo for "FINISHED". Jogos com status IN_PLAY/PAUSED exibem
+// o placar parcial mas o ranking permanece com a flag "Parcial".
+export function mapApiStatusToDb(apiStatus: string): 'scheduled' | 'live' | 'finished' {
+  switch (apiStatus?.toUpperCase()) {
+    case 'FINISHED':
+      return 'finished';
+    case 'IN_PLAY':
+    case 'PAUSED':
+      return 'live';
+    case 'SCHEDULED':
+    case 'TIMED':
+    case 'POSTPONED':
+    case 'SUSPENDED':
+    case 'CANCELLED':
+    default:
+      return 'scheduled';
+  }
+}
+
 export async function fetchLiveScores(): Promise<FootballMatchScore[]> {
   // Em produção (Vercel), usa a serverless function /api/football que guarda a chave no servidor.
   // Em desenvolvimento local, o proxy do Vite roteia /api/football → https://api.football-data.org

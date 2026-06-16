@@ -16,7 +16,7 @@ import { COPA_2026_TEAMS } from '../data/teams';
 import { INITIAL_MATCHES } from '../data/mockData';
 import SearchableTeamSelect from './SearchableTeamSelect';
 import TeamAvatar from './TeamAvatar';
-import { fetchLiveScores } from '../lib/footballApi';
+import { fetchLiveScores, mapApiStatusToDb } from '../lib/footballApi';
 
 
 interface AdminDashboardProps {
@@ -256,6 +256,7 @@ export default function AdminDashboard({
   const [poolFeeValue, setPoolFeeValue] = useState<number>(20);
   const [poolMaxParticipants, setPoolMaxParticipants] = useState<number>(100);
   const [poolModality, setPoolModality] = useState<'score' | 'podium'>('score');
+  const [poolPrizedPlaces, setPoolPrizedPlaces] = useState<number>(3);
   const [poolBettingDeadline, setPoolBettingDeadline] = useState('');
   const [selectedPodiumPositions, setSelectedPodiumPositions] = useState<PodiumPositionId[]>(DEFAULT_PODIUM_POSITION_IDS);
   const [editingPoolId, setEditingPoolId] = useState<string | null>(null);
@@ -346,15 +347,21 @@ export default function AdminDashboard({
                  (codeA === apiMatch.awayTeamTla && codeB === apiMatch.homeTeamTla);
         });
 
-        if (targetMatch && (apiMatch.homeScore !== null || apiMatch.awayScore !== null)) {
+        if (targetMatch) {
+          const dbStatus = mapApiStatusToDb(apiMatch.status);
           const isHomeA = getTeamCodeFromMatchLabel(targetMatch.teamA) === apiMatch.homeTeamTla;
-          
           const newScoreA = isHomeA ? apiMatch.homeScore : apiMatch.awayScore;
           const newScoreB = isHomeA ? apiMatch.awayScore : apiMatch.homeScore;
 
-          if (targetMatch.scoreA !== newScoreA || targetMatch.scoreB !== newScoreB) {
-             updateMatchList(targetMatch.id, newScoreA as number, newScoreB as number);
-             updatedCount++;
+          // Sincroniza se: o jogo está ao vivo, pausado ou finalizado
+          // e o placar ou status mudou
+          const hasScore = newScoreA !== null && newScoreB !== null;
+          const scoreChanged = targetMatch.scoreA !== newScoreA || targetMatch.scoreB !== newScoreB;
+          const statusChanged = targetMatch.status !== dbStatus;
+
+          if (hasScore && (scoreChanged || statusChanged)) {
+            updateMatchList(targetMatch.id, newScoreA as number, newScoreB as number);
+            updatedCount++;
           }
         }
       }
@@ -379,6 +386,7 @@ export default function AdminDashboard({
     setPoolFeeValue(20);
     setPoolMaxParticipants(100);
     setPoolModality('score');
+    setPoolPrizedPlaces(3);
     setPoolBettingDeadline('');
     setSelectedPodiumPositions(DEFAULT_PODIUM_POSITION_IDS);
     setTeamSearchText('');
@@ -406,6 +414,39 @@ export default function AdminDashboard({
       entryFee
     });
     alert('Configurações de comissionamento atualizadas com sucesso no banco de dados!');
+  };
+
+  const handleGenerateRulesTemplate = () => {
+    const isPodium = poolModality === 'podium';
+    const modalityName = isPodium ? 'Bolão de Pódio da Copa do Mundo' : `Bolão tradicional${poolName ? ` do confronto ${poolName}` : ''}`;
+    
+    const commissionStr = poolFeeType === 'percent' ? `${poolFeeValue}%` : `R$ ${poolFeeValue.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
+    
+    const prizedPlaces = poolPrizedPlaces;
+    let prizeDistributionStr = '';
+    if (prizedPlaces === 1) {
+      prizeDistributionStr = 'para o 1º colocado';
+    } else if (prizedPlaces === 2) {
+      prizeDistributionStr = 'entre os 2 primeiros colocados do ranking, na proporção de 70% para o 1º lugar e 30% para o 2º lugar';
+    } else {
+      prizeDistributionStr = 'entre os 3 primeiros colocados do ranking, na proporção de 60% para o 1º lugar, 25% para o 2º lugar e 15% para o 3º lugar';
+    }
+
+    const prazoStr = poolBettingDeadline 
+      ? ` Os palpites de placar poderão ser enviados somente até ${formatPoolDeadlineLabel(poolBettingDeadline)}.`
+      : ' Os palpites de placar poderão ser enviados somente até o início da partida, na data oficial do jogo.';
+
+    const pontuacaoStr = isPodium 
+      ? 'A pontuação seguirá a regra oficial da modalidade: 25 pontos quando o apostador acerta exatamente a seleção na posição correta.'
+      : 'A pontuação seguirá a regra oficial da modalidade: 25 pontos por acerto exato do placar, 10 pontos por acerto do resultado final com saldo de gols correto e 5 pontos por acerto apenas do resultado final.';
+
+    const desempateStr = isPodium
+      ? 'Em caso de empate, serão aplicados, nesta ordem, os critérios de desempate: maior número de acertos exatos, maior índice de aproveitamento e, por fim, o menor tempo de finalização da aposta no sistema, considerando data, hora, minuto e segundo.'
+      : 'Em caso de empate, serão aplicados, nesta ordem, os critérios de desempate: maior número de placares exatos, maior número de acertos com saldo correto, maior número de acertos de resultado, maior índice de aproveitamento e, por fim, o menor tempo de finalização da aposta no sistema, considerando data, hora, minuto e segundo.';
+
+    const template = `${modalityName}.${prazoStr} A premiação será formada pelo valor líquido arrecadado no bolão, após a dedução da comissão da banca de ${commissionStr}, e distribuída ${prizeDistributionStr}. ${pontuacaoStr} Cada aposta finalizada gera pontuação própria, e a classificação do participante considera a soma dos pontos obtidos em suas apostas dentro deste bolão. O ranking será oficializado após a finalização da partida. ${desempateStr} Caso nenhum participante do bolão pontue, a banca fará jus ao prêmio em sua totalidade.`;
+    
+    setPoolDesc(template);
   };
 
   // Hold-to-Confirm logic (1.5 seconds) - exactly required in O3
@@ -582,7 +623,8 @@ export default function AdminDashboard({
       feeType: poolFeeType,
       feeValue: poolFeeValue,
       maxParticipants: poolMaxParticipants,
-      modality: poolModality
+      modality: poolModality,
+      prizedPlaces: poolPrizedPlaces
     };
 
     if (editingPoolId) {
@@ -622,6 +664,7 @@ export default function AdminDashboard({
     setPoolFeeValue(pool.feeValue || 20);
     setPoolMaxParticipants(pool.maxParticipants || 100);
     setPoolModality(pool.modality || 'score');
+    setPoolPrizedPlaces(pool.prizedPlaces || 3);
     setPoolBettingDeadline(toDateTimeLocalValue(pool.bettingDeadline));
     setSelectedPodiumPositions(
       pool.modality === 'podium'
@@ -1482,7 +1525,17 @@ export default function AdminDashboard({
 
               {/* Pool description */}
               <div className="flex flex-col gap-1.5 font-bold">
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Descrição / Regras Especiais</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Descrição / Regras Especiais</label>
+                  <button 
+                    type="button" 
+                    onClick={handleGenerateRulesTemplate}
+                    className="text-[10px] text-[#00E676] hover:text-[#62ff96] flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    Gerar Automático
+                  </button>
+                </div>
                 <textarea 
                   rows={2}
                   value={poolDesc}
@@ -1606,6 +1659,49 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Quantidade de Premiados */}
+              <div className="flex flex-col gap-1.5 font-bold border-t border-[#1f2937]/40 pt-4 mt-2">
+                <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Ranking de Premiados</span>
+                <p className="text-[11px] text-on-surface-variant mb-1 font-normal">
+                  Defina quantos apostadores dividirão o prêmio líquido. A projeção abaixo será atualizada conforme sua escolha.
+                </p>
+                <div className="grid grid-cols-3 bg-[#090D14] p-1 rounded-lg border border-[#1f2937] gap-1">
+                  <button 
+                    type="button"
+                    onClick={() => setPoolPrizedPlaces(1)}
+                    className={`py-2 rounded font-bold text-xs transition-all cursor-pointer ${
+                      poolPrizedPlaces === 1 
+                        ? 'bg-[#00e676]/20 border border-[#00e676]/50 text-[#00e676]' 
+                        : 'text-on-surface-variant hover:text-on-surface border border-transparent'
+                    }`}
+                  >
+                    1º Colocado (100%)
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setPoolPrizedPlaces(2)}
+                    className={`py-2 rounded font-bold text-xs transition-all cursor-pointer ${
+                      poolPrizedPlaces === 2 
+                        ? 'bg-[#00e676]/20 border border-[#00e676]/50 text-[#00e676]' 
+                        : 'text-on-surface-variant hover:text-on-surface border border-transparent'
+                    }`}
+                  >
+                    Até o 2º Colocado
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setPoolPrizedPlaces(3)}
+                    className={`py-2 rounded font-bold text-xs transition-all cursor-pointer ${
+                      poolPrizedPlaces === 3 
+                        ? 'bg-[#00e676]/20 border border-[#00e676]/50 text-[#00e676]' 
+                        : 'text-on-surface-variant hover:text-on-surface border border-transparent'
+                    }`}
+                  >
+                    Até o 3º Colocado
+                  </button>
+                </div>
+              </div>
+
               {/* Dynamic Projection Preview Card */}
               {(() => {
                 const maxGrossPrize = poolMaxParticipants * (parseFloat(poolFee) || 0);
@@ -1614,9 +1710,21 @@ export default function AdminDashboard({
                   : poolMaxParticipants * poolFeeValue;
                 const maxNetPrize = Math.max(0, maxGrossPrize - maxCommission);
 
-                const maxFirstPlace = maxNetPrize * (tenantSettings.firstPlacePct / 100);
-                const maxSecondPlace = maxNetPrize * (tenantSettings.secondPlacePct / 100);
-                const maxThirdPlace = maxNetPrize * (tenantSettings.thirdPlacePct / 100);
+                let pct1 = 0, pct2 = 0, pct3 = 0;
+                if (poolPrizedPlaces === 1) {
+                  pct1 = 100;
+                } else if (poolPrizedPlaces === 2) {
+                  pct1 = 70;
+                  pct2 = 30;
+                } else {
+                  pct1 = tenantSettings.firstPlacePct;
+                  pct2 = tenantSettings.secondPlacePct;
+                  pct3 = tenantSettings.thirdPlacePct;
+                }
+
+                const maxFirstPlace = maxNetPrize * (pct1 / 100);
+                const maxSecondPlace = maxNetPrize * (pct2 / 100);
+                const maxThirdPlace = maxNetPrize * (pct3 / 100);
 
                 return (
                   <div className="bg-[#181C22] border border-[#1f2937] p-4 rounded-xl flex flex-col gap-3 relative overflow-hidden">
@@ -1640,17 +1748,21 @@ export default function AdminDashboard({
 
                     <div className="grid grid-cols-3 gap-2 text-[10px] text-on-surface-variant border-t border-[#1f2937]/50 pt-2">
                       <div className="flex flex-col">
-                        <span>1º Colocado ({tenantSettings.firstPlacePct}%)</span>
+                        <span>1º Colocado ({pct1}%)</span>
                         <span className="font-bold text-white">R$ {maxFirstPlace.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</span>
                       </div>
-                      <div className="flex flex-col">
-                        <span>2º Colocado ({tenantSettings.secondPlacePct}%)</span>
-                        <span className="font-bold text-white">R$ {maxSecondPlace.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span>3º Colocado ({tenantSettings.thirdPlacePct}%)</span>
-                        <span className="font-bold text-white">R$ {maxThirdPlace.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</span>
-                      </div>
+                      {poolPrizedPlaces >= 2 && (
+                        <div className="flex flex-col">
+                          <span>2º Colocado ({pct2}%)</span>
+                          <span className="font-bold text-white">R$ {maxSecondPlace.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {poolPrizedPlaces >= 3 && (
+                        <div className="flex flex-col">
+                          <span>3º Colocado ({pct3}%)</span>
+                          <span className="font-bold text-white">R$ {maxThirdPlace.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
